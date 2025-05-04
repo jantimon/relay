@@ -5,16 +5,18 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use common::escalate_and_check;
 use common::CriticalDiagnostics;
 use common::DiagnosticsResult;
 use common::StableDiagnostics;
 use common::WithDiagnostics;
+use common::escalate_and_check;
 use errors::try_all;
 use graphql_ir::Program;
 use relay_config::ProjectConfig;
+use relay_transforms::ValidateVariablesOptions;
 use relay_transforms::disallow_circular_no_inline_fragments;
 use relay_transforms::disallow_readtime_features_in_mutations;
+use relay_transforms::disallow_required_on_non_null_field;
 use relay_transforms::disallow_reserved_aliases;
 use relay_transforms::disallow_typename_on_root;
 use relay_transforms::validate_assignable_directive;
@@ -34,7 +36,6 @@ use relay_transforms::validate_unused_fragment_variables;
 use relay_transforms::validate_unused_variables;
 use relay_transforms::validate_updatable_directive;
 use relay_transforms::validate_updatable_fragment_spread;
-use relay_transforms::ValidateVariablesOptions;
 
 pub type AdditionalValidations =
     Box<dyn Fn(&Program, &ProjectConfig) -> DiagnosticsResult<()> + Sync + Send>;
@@ -46,11 +47,16 @@ pub fn validate_reader(
     project_config: &ProjectConfig,
     additional_validations: &Option<AdditionalValidations>,
 ) -> DiagnosticsResult<WithDiagnostics<()>> {
-    let output = try_all(vec![if let Some(ref validate) = additional_validations {
-        validate(program, project_config)
-    } else {
-        Ok(())
-    }]);
+    let output = try_all(vec![
+        // This validation is in this list because it depends upon
+        // metadata added by the required_directive transform.
+        disallow_required_on_non_null_field(program),
+        if let Some(ref validate) = additional_validations {
+            validate(program, project_config)
+        } else {
+            Ok(())
+        },
+    ]);
 
     transform_errors(output, project_config)
 }

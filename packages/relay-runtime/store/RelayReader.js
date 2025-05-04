@@ -132,7 +132,10 @@ class RelayReader {
     this._fieldErrors = null;
     this._owner = selector.owner;
     this._useExecTimeResolvers =
-      this._owner.node.operation.use_exec_time_resolvers ?? false;
+      this._owner.node.operation.use_exec_time_resolvers ??
+      this._owner.node.operation.exec_time_resolvers_enabled_provider?.get() ===
+        true ??
+      false;
     this._recordSource = recordSource;
     this._seenRecords = new Set();
     this._selector = selector;
@@ -221,7 +224,8 @@ class RelayReader {
     if (this._fieldErrors == null) {
       this._fieldErrors = [];
     }
-    for (const error of errors) {
+    for (let i = 0; i < errors.length; i++) {
+      const error = errors[i];
       this._fieldErrors.push({
         kind: 'relay_field_payload.error',
         owner,
@@ -229,6 +233,9 @@ class RelayReader {
         error,
         shouldThrow: this._selector.node.metadata?.throwOnFieldError ?? false,
         handled: false,
+        // the uiContext is always undefined here.
+        // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+        uiContext: undefined,
       });
     }
   }
@@ -251,8 +258,18 @@ class RelayReader {
             owner,
             fieldPath: fieldName,
             handled: false,
+            // the uiContext is always undefined here.
+            // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+            uiContext: undefined,
           }
-        : {kind: 'missing_expected_data.log', owner, fieldPath: fieldName},
+        : {
+            kind: 'missing_expected_data.log',
+            owner,
+            fieldPath: fieldName,
+            // the uiContext is always undefined here.
+            // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+            uiContext: undefined,
+          },
     );
 
     this._isMissingData = true;
@@ -283,6 +300,7 @@ class RelayReader {
       if (record === undefined) {
         this._markDataAsMissing('<record>');
       }
+      // $FlowFixMe[incompatible-return]
       return record;
     }
     const data = prevData || {};
@@ -328,6 +346,9 @@ class RelayReader {
           fieldPath: fieldName,
           owner,
           handled: false,
+          // the uiContext is always undefined here.
+          // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+          uiContext: undefined,
         });
         return;
       case 'LOG':
@@ -335,6 +356,9 @@ class RelayReader {
           kind: 'missing_required_field.log',
           fieldPath: fieldName,
           owner,
+          // the uiContext is always undefined here.
+          // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+          uiContext: undefined,
         });
         return;
       default:
@@ -657,13 +681,31 @@ class RelayReader {
         } else {
           return this._readLink(selection.field, record, data);
         }
+
       case 'RelayResolver':
-        return this._readResolverField(selection.field, record, data);
-      case 'RelayLiveResolver':
-        return this._readResolverField(selection.field, record, data);
+      case 'RelayLiveResolver': {
+        if (this._useExecTimeResolvers) {
+          return this._readScalar(selection.field, record, data);
+        } else {
+          return this._readResolverField(selection.field, record, data);
+        }
+      }
       case 'ClientEdgeToClientObject':
       case 'ClientEdgeToServerObject':
-        return this._readClientEdge(selection.field, record, data);
+        if (
+          this._useExecTimeResolvers &&
+          (selection.field.backingField.kind === 'RelayResolver' ||
+            selection.field.backingField.kind === 'RelayLiveResolver')
+        ) {
+          const {field} = selection;
+          if (field.linkedField.plural) {
+            return this._readPluralLink(field.linkedField, record, data);
+          } else {
+            return this._readLink(field.linkedField, record, data);
+          }
+        } else {
+          return this._readClientEdge(selection.field, record, data);
+        }
       case 'AliasedInlineFragmentSpread':
         return this._readAliasedInlineFragment(selection.field, record, data);
       default:
@@ -819,7 +861,8 @@ class RelayReader {
     // upwards to mimic the behavior of having traversed into that fragment directly.
     if (cachedSnapshot != null) {
       if (cachedSnapshot.missingClientEdges != null) {
-        for (const missing of cachedSnapshot.missingClientEdges) {
+        for (let i = 0; i < cachedSnapshot.missingClientEdges.length; i++) {
+          const missing = cachedSnapshot.missingClientEdges[i];
           this._missingClientEdges.push(missing);
         }
       }
@@ -828,7 +871,13 @@ class RelayReader {
           this._isMissingData ||
           cachedSnapshot.missingLiveResolverFields.length > 0;
 
-        for (const missingResolverField of cachedSnapshot.missingLiveResolverFields) {
+        for (
+          let i = 0;
+          i < cachedSnapshot.missingLiveResolverFields.length;
+          i++
+        ) {
+          const missingResolverField =
+            cachedSnapshot.missingLiveResolverFields[i];
           this._missingLiveResolverFields.push(missingResolverField);
         }
       }
@@ -836,7 +885,8 @@ class RelayReader {
         if (this._fieldErrors == null) {
           this._fieldErrors = [];
         }
-        for (const error of cachedSnapshot.fieldErrors) {
+        for (let i = 0; i < cachedSnapshot.fieldErrors.length; i++) {
+          const error = cachedSnapshot.fieldErrors[i];
           if (this._selector.node.metadata?.throwOnFieldError === true) {
             // If this fragment is @throwOnFieldError, any destructive error
             // encountered inside a resolver's fragment is equivilent to the
@@ -859,13 +909,16 @@ class RelayReader {
     // the errors can be attached to this read's snapshot. This allows the error
     // to be logged.
     if (resolverError) {
-      const errorEvent = {
+      const errorEvent: FieldError = {
         kind: 'relay_resolver.error',
         fieldPath,
         owner: this._fragmentName,
         error: resolverError,
         shouldThrow: this._selector.node.metadata?.throwOnFieldError ?? false,
         handled: false,
+        // the uiContext is always undefined here.
+        // the loggingContext is provided by hooks - and assigned to uiContext in handlePotentialSnapshotErrors
+        uiContext: undefined,
       };
       if (this._fieldErrors == null) {
         this._fieldErrors = [errorEvent];
@@ -891,9 +944,11 @@ class RelayReader {
       this._missingLiveResolverFields.push(suspenseID);
     }
     if (updatedDataIDs != null) {
-      for (const recordID of updatedDataIDs) {
+      // Iterating a Set with for of is okay
+      // eslint-disable-next-line relay-internal/no-for-of-loops
+      updatedDataIDs.forEach(recordID => {
         this._updatedDataIDs.add(recordID);
-      }
+      });
     }
   }
 
@@ -1324,10 +1379,15 @@ class RelayReader {
     // Determine the component module from the store: if the field is missing
     // it means we don't know what component to render the match with.
     const componentKey = getModuleComponentKey(moduleImport.documentName);
+    const relayStoreComponent = RelayModernRecord.getValue(
+      record,
+      componentKey,
+    );
     // componentModuleProvider is used by Client 3D for read time resolvers.
     const component =
-      moduleImport.componentModuleProvider ??
-      RelayModernRecord.getValue(record, componentKey);
+      relayStoreComponent !== undefined
+        ? relayStoreComponent
+        : moduleImport.componentModuleProvider;
     if (component == null) {
       if (component === undefined) {
         this._markDataAsMissing('<module-import>');

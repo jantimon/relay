@@ -186,6 +186,18 @@ module.exports = {
         infoLink: 'https://www.rea-app.fr/',
         pinned: false,
       },
+      {
+        caption: 'Steep Wellness',
+        image: '/img/logos/steep.png',
+        infoLink: 'https://steepapp.com',
+        pinned: false,
+      },
+      {
+        caption: 'GigSmart',
+        image: '/img/logos/gigsmart.png',
+        infoLink: 'https://gigsmart.com',
+        pinned: false,
+      },
     ],
   },
   onBrokenLinks: 'throw',
@@ -268,11 +280,15 @@ module.exports = {
             ],
           },
           {
-            to: '/docs/getting-started/step-by-step-guide/',
+            // Update on next versioned docs release
+            // to: '/docs/getting-started/quick-start',
+            to: '/docs/',
             from: ['/docs/en/quick-start-guide', '/docs/quick-start-guide'],
           },
           {
-            to: '/docs/getting-started/step-by-step-guide/',
+            // Update on next versioned docs release
+            // to: '/docs/getting-started/quick-start',
+            to: '/docs/',
             from: [
               '/docs/en/experimental/step-by-step',
               '/docs/experimental/step-by-step',

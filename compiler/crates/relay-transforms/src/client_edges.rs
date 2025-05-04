@@ -19,7 +19,6 @@ use docblock_shared::HAS_OUTPUT_TYPE_ARGUMENT_NAME;
 use docblock_shared::LIVE_ARGUMENT_NAME;
 use docblock_shared::RELAY_RESOLVER_DIRECTIVE_NAME;
 use docblock_shared::RELAY_RESOLVER_MODEL_INSTANCE_FIELD;
-use graphql_ir::associated_data_impl;
 use graphql_ir::Argument;
 use graphql_ir::ConstantValue;
 use graphql_ir::Directive;
@@ -37,11 +36,12 @@ use graphql_ir::Selection;
 use graphql_ir::Transformed;
 use graphql_ir::Transformer;
 use graphql_ir::Value;
+use graphql_ir::associated_data_impl;
 use graphql_syntax::OperationKind;
+use intern::Lookup;
 use intern::string_key::Intern;
 use intern::string_key::StringKey;
 use intern::string_key::StringKeyMap;
-use intern::Lookup;
 use lazy_static::lazy_static;
 use relay_config::ProjectConfig;
 use relay_schema::definitions::ResolverType;
@@ -51,13 +51,14 @@ use schema::Schema;
 use schema::Type;
 
 use super::ValidationMessageWithData;
-use crate::refetchable_fragment::RefetchableFragment;
-use crate::refetchable_fragment::REFETCHABLE_NAME;
-use crate::relay_resolvers::get_bool_argument_is_true;
-use crate::RequiredMetadataDirective;
-use crate::ValidationMessage;
 use crate::CHILDREN_CAN_BUBBLE_METADATA_KEY;
 use crate::REQUIRED_DIRECTIVE_NAME;
+use crate::RequiredMetadataDirective;
+use crate::ValidationMessage;
+use crate::match_::MATCH_CONSTANTS;
+use crate::refetchable_fragment::REFETCHABLE_NAME;
+use crate::refetchable_fragment::RefetchableFragment;
+use crate::relay_resolvers::get_bool_argument_is_true;
 
 lazy_static! {
     // This gets attached to the generated query
@@ -312,6 +313,7 @@ impl<'program, 'pc> ClientEdgesTransform<'program, 'pc> {
             *REQUIRED_DIRECTIVE_NAME,
             *CHILDREN_CAN_BUBBLE_METADATA_KEY,
             RequiredMetadataDirective::directive_name(),
+            MATCH_CONSTANTS.match_directive_name,
         ];
 
         let other_directives = directives
@@ -483,6 +485,12 @@ impl<'program, 'pc> ClientEdgesTransform<'program, 'pc> {
         waterfall_directive: Option<&Directive>,
         selections: Vec<Selection>,
     ) -> ClientEdgeMetadataDirective {
+        if field_type.type_.is_list() {
+            self.errors.push(Diagnostic::error(
+                ValidationMessage::ClientEdgeToServerObjectList,
+                field_type.name.location,
+            ));
+        }
         // Client Edges to server objects must be annotated with @waterfall
         if waterfall_directive.is_none() {
             self.errors.push(Diagnostic::error_with_data(

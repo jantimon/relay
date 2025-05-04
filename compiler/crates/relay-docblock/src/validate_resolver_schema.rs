@@ -13,8 +13,8 @@ use docblock_shared::KEY_RESOLVER_ID_FIELD;
 use docblock_shared::RELAY_RESOLVER_DIRECTIVE_NAME;
 use docblock_shared::RELAY_RESOLVER_MODEL_DIRECTIVE_NAME;
 use docblock_shared::RELAY_RESOLVER_WEAK_OBJECT_DIRECTIVE;
-use errors::try2;
 use errors::try_all;
+use errors::try2;
 use schema::Object;
 use schema::SDLSchema;
 use schema::Schema;
@@ -125,7 +125,7 @@ fn is_valid_mutation_resolver_return_type(type_: &TypeReference<Type>) -> bool {
         TypeReference::NonNull(non_null_type) => {
             // note: this should be unreachable since we already disallow relay resolvers to return non-nullable types
             // - implement this anyway in case that changes in the future
-            return is_valid_mutation_resolver_return_type(non_null_type.as_ref());
+            is_valid_mutation_resolver_return_type(non_null_type.as_ref())
         }
     }
 }

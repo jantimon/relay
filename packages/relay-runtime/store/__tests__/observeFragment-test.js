@@ -145,6 +145,35 @@ test('Missing required data', async () => {
   });
 });
 
+test('Keep loading on network error', async () => {
+  const query = graphql`
+    query observeFragmentTestNetworkErrorQuery {
+      ...observeFragmentTestNetworkErrorFragment
+    }
+  `;
+
+  const fragment = graphql`
+    fragment observeFragmentTestNetworkErrorFragment on Query {
+      me {
+        name
+      }
+    }
+  `;
+
+  const environment = createMockEnvironment();
+  const variables = {};
+  const operation = createOperationDescriptor(query, variables);
+  fetchQuery(environment, query, variables).subscribe({});
+  const {data} = environment.lookup(operation.fragment);
+  // $FlowFixMe Data is untyped
+  const observable = observeFragment(environment, fragment, data);
+  withObservableValues(observable, results => {
+    expect(results).toEqual([{state: 'loading'}]);
+    environment.mock.reject(operation, new Error('Network error'));
+    expect(results).toEqual([{state: 'loading'}]);
+  });
+});
+
 test('Field error with @throwOnFieldError', async () => {
   const query = graphql`
     query observeFragmentTestThrowOnFieldErrorQuery {
@@ -230,7 +259,7 @@ test('Resolver error with @throwOnFieldError', async () => {
     expect(results).toEqual([
       {
         error: new Error(
-          "Relay: Resolver error at path 'always_throws' in 'observeFragmentTestResolverErrorWithThrowOnFieldErrorFragment'.",
+          "Relay: Resolver error at path 'always_throws' in 'observeFragmentTestResolverErrorWithThrowOnFieldErrorFragment'. Message: I always throw. What did you expect?",
         ),
         state: 'error',
       },
@@ -512,7 +541,7 @@ test('Resolver error with @relay(plural: true) @throwOnFieldError', async () => 
     expect(results).toEqual([
       {
         error: new Error(
-          "Relay: Resolver error at path 'always_throws' in 'observeFragmentTestResolverErrorWithPluralThrowOnFieldErrorFragment'.",
+          "Relay: Resolver error at path 'always_throws' in 'observeFragmentTestResolverErrorWithPluralThrowOnFieldErrorFragment'. Message: I always throw. What did you expect?",
         ),
         state: 'error',
       },

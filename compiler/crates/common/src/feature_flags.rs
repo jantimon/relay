@@ -10,13 +10,14 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 
 use indexmap::IndexSet;
-use intern::string_key::StringKey;
 use intern::Lookup;
+use intern::string_key::StringKey;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::Rollout;
+use crate::rollout::RolloutRange;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -49,7 +50,7 @@ pub struct FeatureFlags {
 
     /// Enforce that you must add `@alias` to a fragment if it may not match,
     /// due to type mismatch or `@skip`/`@include`
-    #[serde(default)]
+    #[serde(default = "enabled_feature_flag")]
     pub enforce_fragment_alias_where_ambiguous: FeatureFlag,
 
     /// Print queries in compact form
@@ -183,6 +184,14 @@ pub enum FeatureFlag {
 
     /// Partially enabled: used for gradual rollout of the feature
     Rollout { rollout: Rollout },
+
+    /// Partially enabled: used for gradual rollout of the feature
+    RolloutRange { rollout: RolloutRange },
+}
+
+/// Used for making feature flags enabled by default via Serde's default attribute.
+fn enabled_feature_flag() -> FeatureFlag {
+    FeatureFlag::Enabled
 }
 
 impl FeatureFlag {
@@ -191,6 +200,7 @@ impl FeatureFlag {
             FeatureFlag::Enabled => true,
             FeatureFlag::Limited { allowlist } => allowlist.contains(&name),
             FeatureFlag::Rollout { rollout } => rollout.check(name.lookup()),
+            FeatureFlag::RolloutRange { rollout } => rollout.check(name.lookup()),
             FeatureFlag::Disabled => false,
         }
     }
@@ -211,6 +221,7 @@ impl Display for FeatureFlag {
                 f.write_str(&items.join(", "))
             }
             FeatureFlag::Rollout { rollout } => write!(f, "Rollout: {:#?}", rollout),
+            FeatureFlag::RolloutRange { rollout } => write!(f, "RolloutRange: {:#?}", rollout),
         }
     }
 }

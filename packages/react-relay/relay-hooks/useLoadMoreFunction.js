@@ -67,9 +67,11 @@ hook useLoadMoreFunction<TVariables: Variables>(
 ): [LoadMoreFn<TVariables>, boolean, () => void] {
   if (RelayFeatureFlags.ENABLE_ACTIVITY_COMPATIBILITY) {
     // $FlowFixMe[react-rule-hook] - the condition is static
+    // $FlowFixMe[react-rule-hook-conditional]
     return useLoadMoreFunction_EXPERIMENTAL(args);
   }
   // $FlowFixMe[react-rule-hook] - the condition is static
+  // $FlowFixMe[react-rule-hook-conditional]
   return useLoadMoreFunction_CURRENT(args);
 }
 
@@ -169,12 +171,7 @@ hook useLoadMoreFunction_CURRENT<TVariables: Variables>(
 
       const fragmentSelector = getSelector(fragmentNode, fragmentRef);
 
-      const isRequestInvalidCheck =
-        RelayFeatureFlags.OPTIMIZE_RECREATING_LOAD_MORE_FUNCTION
-          ? isRequestInvalid
-          : fragmentData == null || isParentQueryActive;
-
-      if (isFetchingRef.current === true || isRequestInvalidCheck) {
+      if (isFetchingRef.current === true || isRequestInvalid) {
         if (fragmentSelector == null) {
           warning(
             false,
@@ -276,9 +273,6 @@ hook useLoadMoreFunction_CURRENT<TVariables: Variables>(
       completeFetch,
       isFetchingRef,
       isRequestInvalid,
-      ...(RelayFeatureFlags.OPTIMIZE_RECREATING_LOAD_MORE_FUNCTION
-        ? [isRequestInvalid]
-        : [isParentQueryActive, fragmentData]),
       fragmentNode.name,
       fragmentRef,
       componentDisplayName,
