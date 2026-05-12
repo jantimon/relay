@@ -30,6 +30,7 @@ import type {
   NormalizationRootNode,
   NormalizationScalarField,
   NormalizationSelectableNode,
+  NormalizationSelection,
 } from '../util/NormalizationNode';
 import type {
   ReaderClientEdgeToServerObject,
@@ -1509,8 +1510,15 @@ export type RelayResponsePayload = {
   +fieldPayloads: ?Array<HandleFieldPayload>,
   +incrementalPlaceholders: ?Array<IncrementalDataPlaceholder>,
   +followupPayloads: ?Array<FollowupPayload>,
-  +source: MutableRecordSource,
   +isFinal: boolean,
+  +isPreNormalized?: boolean,
+  +s2cExecutions?: ?ReadonlyArray<{
+    +recordID: DataID,
+    +selections: ReadonlyArray<NormalizationSelection>,
+    +typeName: string,
+  }>,
+  +source: MutableRecordSource,
+  +storeUpdater?: ?(store: RecordSourceProxy) => void,
 };
 
 /**

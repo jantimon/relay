@@ -36,6 +36,23 @@ pub trait ArtifactWriter {
     fn write(&self, path: PathBuf, content: Vec<u8>) -> BuildProjectResult;
     fn remove(&self, path: PathBuf) -> BuildProjectResult;
     fn finalize(&self) -> crate::errors::Result<()>;
+
+    /// Clear all pending operations. Called when the watch loop restarts
+    /// after a source control update (rebase) to discard stale cached
+    /// operations that were derived from the pre-rebase compiler state.
+    fn reset(&self) {}
+
+    /// Check if the file on disk matches the content the compiler last wrote.
+    ///
+    /// Used to distinguish the compiler's own writes from external modifications
+    /// when watchman reports changes to generated artifact files. Returns `true`
+    /// if the file content matches what was last written, `false` otherwise.
+    ///
+    /// The default implementation returns `false` (conservatively assumes all
+    /// changes are external).
+    fn content_matches_last_write(&self, _path: &Path) -> bool {
+        false
+    }
 }
 
 #[derive(Default)]

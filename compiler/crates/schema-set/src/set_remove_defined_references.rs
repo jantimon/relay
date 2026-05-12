@@ -20,12 +20,11 @@ use intern::string_key::StringKeyIndexMap;
 use intern::string_key::StringKeyMap;
 use intern::string_key::StringKeySet;
 use lazy_static::lazy_static;
-use schema::DirectiveValue;
-use schema::EnumValue;
 
 use crate::SchemaSet;
 use crate::SetDirective;
 use crate::SetEnum;
+use crate::SetEnumValue;
 use crate::SetInputObject;
 use crate::SetInterface;
 use crate::SetMemberType;
@@ -33,7 +32,8 @@ use crate::SetObject;
 use crate::SetScalar;
 use crate::SetType;
 use crate::SetUnion;
-use crate::schema_set::CanBeClientDefinition;
+use crate::schema_set::HasDefinitionItem;
+use crate::schema_set::SetDirectiveValue;
 use crate::schema_set::SetRootSchema;
 use crate::schema_set::StringKeyNamed;
 
@@ -189,9 +189,20 @@ impl SchemaSet {
 }
 
 fn remove_directive_usages(
-    directives: &[DirectiveValue],
+    directives: &[SetDirectiveValue],
     excluded_directive_names: &StringKeySet,
-) -> Vec<DirectiveValue> {
+) -> Vec<SetDirectiveValue> {
+    directives
+        .iter()
+        .filter(|d| !excluded_directive_names.contains(&d.name.0))
+        .cloned()
+        .collect()
+}
+
+fn remove_set_directive_usages(
+    directives: &[SetDirectiveValue],
+    excluded_directive_names: &StringKeySet,
+) -> Vec<SetDirectiveValue> {
     directives
         .iter()
         .filter(|d| !excluded_directive_names.contains(&d.name.0))
@@ -307,9 +318,10 @@ fn remove_references_from_enum(
             .map(|(name, value)| {
                 (
                     *name,
-                    EnumValue {
+                    SetEnumValue {
+                        definition: None,
                         value: value.value,
-                        directives: remove_directive_usages(
+                        directives: remove_set_directive_usages(
                             &value.directives,
                             excluded_directive_names,
                         ),
@@ -492,7 +504,7 @@ mod tests {
     use super::*;
 
     fn set_from_str(sdl: &str) -> SchemaSet {
-        SchemaSet::from_schema_documents(&[parse_schema_document(
+        SchemaSet::from_base_schema_documents(&[parse_schema_document(
             sdl,
             SourceLocationKey::generated(),
         )
